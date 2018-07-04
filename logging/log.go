@@ -177,7 +177,6 @@ func Output(calldepth int, format string, args ...interface{}) {
 func Flush() {
     //结束log监听写，将剩余log写入后退出for循环
     close(logChan)
-    logChan = nil
 
     //等待所有日志写完（优化TODO：等待一定时间）
     <-doneChan
