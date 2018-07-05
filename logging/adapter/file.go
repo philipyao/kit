@@ -20,6 +20,7 @@ type AdapterFile struct {
 	currDate string
 	writer   *os.File
 	size     ByteSize
+    ticker   *time.Ticker
 }
 
 func NewAdapterFile(logName string, opt *Options) (*AdapterFile, error) {
@@ -40,7 +41,7 @@ func NewAdapterFile(logName string, opt *Options) (*AdapterFile, error) {
 		}
 	}
 	a.currDate = makeCurrDate()
-	if err := a.rotateBySize(); err != nil {
+	if err := a.rotate(); err != nil {
 		return nil, err
 	}
 
@@ -63,7 +64,7 @@ func (af *AdapterFile) Write(b []byte) error {
 	} else {
 		if af.size+ByteSize(len(b)) >= af.options.MaxSize {
 			//切换序号
-			err = af.rotateBySize()
+			err = af.rotate()
 			if err != nil {
 				return err
 			}
@@ -80,6 +81,10 @@ func (af *AdapterFile) Write(b []byte) error {
 }
 
 func (af *AdapterFile) Close() {
+    if af.ticker != nil {
+        af.ticker.Stop()
+        af.ticker = nil
+    }
 	if af.writer != nil {
 		af.writer.Close()
 		af.writer = nil
@@ -89,9 +94,16 @@ func (af *AdapterFile) Close() {
 ///////////////////////////////////////////////////////////////
 func (af *AdapterFile) dailyRotate() {
 	//自动日期轮转
+    af.ticker = time.NewTicker(time.Second)
+    for t := range af.ticker.C {
+        if makeDate(t) != af.currDate {
+            af.currDate = makeDate(t)
+            af.rotate()
+        }
+    }
 }
 
-func (af *AdapterFile) rotateBySize() error {
+func (af *AdapterFile) rotate() error {
 	if af.writer != nil {
 		af.writer.Close()
 		af.writer = nil
@@ -148,6 +160,10 @@ func (af *AdapterFile) openLogFile(fname string) error {
 }
 
 func makeCurrDate() string {
-	_, m, d := time.Now().Date()
-	return fmt.Sprintf("%02d%02d", int(m), d)
+    return makeDate(time.Now())
+}
+
+func makeDate(t time.Time) string {
+    _, m, d := t.Date()
+    return fmt.Sprintf("%02d%02d", int(m), d)
 }
